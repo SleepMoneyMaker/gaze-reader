@@ -3,125 +3,255 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Gaze Reader</title>
-<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@400;600;700&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Gaze Reader · VRP Edge</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  body {
-    background: #0a0a0c; color: #62626b; overflow-x: hidden;
-    font-family: "Source Serif 4","Iowan Old Style","Palatino",Georgia,serif;
-    -webkit-font-smoothing: antialiased;
-  }
-  #camera { position: fixed; top: 0; left: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-  #detect-canvas { display: none; }
+  @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
 
-.header { padding: 28px 22px 0; position: relative; z-index: 1; }
-.label {
-font-family: “JetBrains Mono”,“SF Mono”,“Fira Code”,monospace;
-font-size: 9px; letter-spacing: 4px; color: #333; text-transform: uppercase;
+- { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+body {
+background: #09090b;
+color: #52525b;
+font-family: “Source Serif 4”, Georgia, serif;
+-webkit-font-smoothing: antialiased;
+overflow-x: hidden;
 }
-.title {
-font-size: 24px; font-weight: 700; color: #fafafa;
-margin-top: 4px; line-height: 1.15;
+
+/* ── Calibration ── */
+#calibration-screen {
+position: fixed; inset: 0; z-index: 100;
+background: #09090b;
+display: flex; flex-direction: column;
+align-items: center; justify-content: center;
 }
-.status {
-font-family: “JetBrains Mono”,monospace;
-font-size: 10px; color: #52525b; margin-top: 6px;
+#calibration-screen.hidden { display: none; }
+
+.cal-title {
+font-family: “JetBrains Mono”, monospace;
+font-size: 11px; letter-spacing: 3px; color: #3f3f46;
+text-transform: uppercase; margin-bottom: 8px;
+}
+.cal-subtitle {
+font-size: 15px; color: #a1a1aa; max-width: 300px;
+text-align: center; line-height: 1.5; margin-bottom: 32px;
+}
+.cal-point {
+position: fixed; width: 36px; height: 36px;
+border-radius: 50%; cursor: pointer;
+display: flex; align-items: center; justify-content: center;
+transition: transform 0.2s, opacity 0.3s;
+z-index: 101;
+}
+.cal-point-inner {
+width: 12px; height: 12px; border-radius: 50%;
+background: #3b82f6;
+transition: transform 0.15s, background 0.2s;
+}
+.cal-point:hover .cal-point-inner,
+.cal-point:active .cal-point-inner {
+transform: scale(1.3);
+background: #8b5cf6;
+}
+.cal-point.done .cal-point-inner {
+background: #4ade80;
+transform: scale(0.7);
+}
+.cal-progress {
+font-family: “JetBrains Mono”, monospace;
+font-size: 11px; color: #3f3f46;
+margin-top: 24px;
+}
+#start-btn, #begin-reading-btn, .mode-btn {
+padding: 14px 36px; border: none; border-radius: 10px;
+font-family: “JetBrains Mono”, monospace;
+font-size: 13px; font-weight: 700; cursor: pointer;
+-webkit-appearance: none;
+}
+#start-btn, #begin-reading-btn {
+background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+color: #fff; letter-spacing: 1px;
+}
+.mode-btn {
+background: #18181b; color: #a1a1aa;
+border: 1px solid #27272a; margin-top: 12px;
+}
+#camera-status {
+font-family: “JetBrains Mono”, monospace;
+font-size: 10px; color: #4ade80; margin-top: 16px;
 display: flex; align-items: center; gap: 6px;
 }
-.dot {
-width: 6px; height: 6px; border-radius: 50%; background: #4ade80;
-display: inline-block; animation: blink 2s infinite;
+#camera-status .dot {
+width: 6px; height: 6px; border-radius: 50%;
+background: #4ade80; animation: blink 2s infinite;
 }
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
 
-.controls { padding: 18px 22px; display: flex; gap: 8px; }
-.btn {
-flex: 1; padding: 14px 0; border-radius: 10px;
-font-family: “JetBrains Mono”,monospace; font-size: 13px;
-cursor: pointer; border: none; -webkit-appearance: none;
+/* ── Reader ── */
+#reader-screen { display: none; }
+#reader-screen.active { display: block; }
+
+.reader-header { padding: 24px 22px 0; position: relative; z-index: 1; }
+.reader-label {
+font-family: “JetBrains Mono”, monospace;
+font-size: 9px; letter-spacing: 4px; color: #27272a;
+text-transform: uppercase;
 }
-.btn-primary { background: linear-gradient(135deg,#3b82f6,#8b5cf6); color: #fff; font-weight: 700; }
-.btn-secondary { background: #18181b; color: #a1a1aa; border: 1px solid #27272a; }
+.reader-title {
+font-size: 24px; font-weight: 700; color: #fafafa;
+margin-top: 4px; line-height: 1.15;
+}
+.reader-status {
+font-family: “JetBrains Mono”, monospace;
+font-size: 10px; color: #52525b; margin-top: 6px;
+display: flex; align-items: center; gap: 6px;
+}
 
 .text-body {
-padding: 16px 22px 120px;
-font-size: 17px; line-height: 1.75;
+padding: 20px 22px 120px;
+font-size: 18px; line-height: 1.8;
 position: relative; z-index: 1;
 }
 .text-body .w {
 display: inline;
-transition: font-size .12s ease-out, color .15s;
+transition: font-size 0.1s ease-out, color 0.12s;
+will-change: font-size;
 }
 
 .gaze-light {
-position: fixed; width: 220px; height: 220px;
+position: fixed; width: 240px; height: 240px;
 border-radius: 50%; pointer-events: none; z-index: 0;
-background: radial-gradient(circle, rgba(139,92,246,0.07) 0%, transparent 70%);
-transform: translate(-50%,-50%);
+background: radial-gradient(circle, rgba(139,92,246,0.06) 0%, transparent 70%);
+transform: translate(-50%, -50%);
 display: none;
 }
 
 .bottom-bar {
 position: fixed; bottom: 0; left: 0; right: 0;
 padding: 12px 22px 28px;
-background: linear-gradient(transparent, #0a0a0c 50%);
+background: linear-gradient(transparent, #09090b 50%);
 display: none; justify-content: center; gap: 8px; z-index: 10;
 }
+#reader-screen.active ~ .bottom-bar { display: flex; }
 .small-btn {
 padding: 10px 20px; background: #18181bdd;
 backdrop-filter: blur(12px); color: #71717a;
 border: 1px solid #27272a; border-radius: 10px;
-font-family: “JetBrains Mono”,monospace; font-size: 11px; cursor: pointer;
--webkit-appearance: none;
+font-family: “JetBrains Mono”, monospace;
+font-size: 11px; cursor: pointer; -webkit-appearance: none;
 }
 
-/* Camera preview pip */
+/* WebGazer overrides — hide default video preview */
+#webgazerVideoFeed { display: none !important; }
+#webgazerVideoContainer { display: none !important; }
+#webgazerFaceFeedbackBox { display: none !important; }
+#webgazerGazeDot { display: none !important; }
+#webgazerFaceOverlay { display: none !important; }
+
+/* Cam preview PIP */
 .cam-pip {
 position: fixed; top: 12px; right: 12px;
-width: 64px; height: 48px; border-radius: 8px;
+width: 72px; height: 54px; border-radius: 8px;
 overflow: hidden; border: 1px solid #27272a;
-z-index: 20; display: none; opacity: 0.7;
+z-index: 50; display: none; opacity: 0.6;
 }
 .cam-pip video {
 width: 100%; height: 100%; object-fit: cover;
 transform: scaleX(-1);
+}
+
+/* Loading overlay */
+#loading-overlay {
+position: fixed; inset: 0; z-index: 200;
+background: #09090b;
+display: flex; flex-direction: column;
+align-items: center; justify-content: center;
+gap: 16px;
+}
+#loading-overlay.hidden { display: none; }
+.spinner {
+width: 32px; height: 32px; border-radius: 50%;
+border: 3px solid #27272a; border-top-color: #3b82f6;
+animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text {
+font-family: “JetBrains Mono”, monospace;
+font-size: 11px; color: #52525b; letter-spacing: 1px;
 }
 </style>
 
 </head>
 <body>
 
-<video id="camera" playsinline muted></video>
-<canvas id="detect-canvas"></canvas>
+<!-- Loading -->
+
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <div class="loading-text">Loading eye tracking model…</div>
+</div>
+
+<!-- Gaze light effect -->
 
 <div class="gaze-light" id="gaze-light"></div>
 
-<div class="cam-pip" id="cam-pip">
-  <video id="pip-video" playsinline muted></video>
+<!-- Calibration -->
+
+<div id="calibration-screen" class="hidden">
+  <div class="cal-title">Calibration</div>
+  <div class="cal-subtitle">
+    Look at each dot and tap/click it. This teaches the model where your eyes are pointing.
+  </div>
+  <div id="cal-progress" class="cal-progress"></div>
 </div>
 
-<div class="header">
-  <div class="label">Gaze-Adaptive Reader</div>
-  <div class="title">The VRP Edge</div>
-  <div class="status" id="status">Choose a mode to start</div>
+<!-- Start screen -->
+
+<div id="start-screen" style="position:fixed;inset:0;z-index:90;background:#09090b;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+  <div class="cal-title" style="margin-bottom:4px">Gaze-Adaptive Reader</div>
+  <div style="font-size:28px;font-weight:700;color:#fafafa;margin-bottom:6px;">The VRP Edge</div>
+  <div class="cal-subtitle" style="margin-bottom:24px">
+    Uses your camera to track where your eyes are looking. Words you read will grow and brighten.
+  </div>
+  <button id="start-btn">📷 Start Eye Tracking</button>
+  <button class="mode-btn" id="fallback-touch-btn">👆 Use Touch Instead</button>
+  <div id="camera-status" style="display:none">
+    <span class="dot"></span> Camera active
+  </div>
 </div>
 
-<div class="controls" id="controls">
-  <button class="btn btn-primary" id="btn-camera">📷 Camera</button>
-  <button class="btn btn-secondary" id="btn-gyro">📱 Tilt</button>
-  <button class="btn btn-secondary" id="btn-touch">👆 Touch</button>
+<!-- Reader -->
+
+<div id="reader-screen">
+  <div class="reader-header">
+    <div class="reader-label">Gaze-Adaptive Reader</div>
+    <div class="reader-title">The VRP Edge</div>
+    <div class="reader-status" id="reader-status"></div>
+  </div>
+  <div class="text-body" id="text-body"></div>
 </div>
 
-<div class="text-body" id="text-body"></div>
+<!-- Bottom bar -->
 
 <div class="bottom-bar" id="bottom-bar">
-  <button class="small-btn" id="btn-recalibrate" style="display:none">↺ Recalibrate</button>
-  <button class="small-btn" id="btn-switch">Switch Mode</button>
+  <button class="small-btn" id="btn-recalibrate">↺ Recalibrate</button>
+  <button class="small-btn" id="btn-reset">Switch Mode</button>
 </div>
 
+<!-- Cam PIP -->
+
+<div class="cam-pip" id="cam-pip"></div>
+
+<!-- WebGazer from CDN -->
+
+<script src="https://cdn.jsdelivr.net/npm/webgazer@2.1.0/dist/webgazer.min.js"></script>
+
 <script>
+// ─── Config ───
+const GAZE_RADIUS = 120; // px radius of influence
+const MAX_SCALE = 1.35;  // max font scale
+const SMOOTH = 0.15;     // gaze smoothing factor
+
 const TEXT = `The volatility risk premium is the single most persistent edge in options markets. Every day, implied volatility overestimates realized volatility by an average of three to five points. This gap is your edge. You are selling insurance that almost never pays out.
 
 Cash-secured puts are the purest expression of this trade. You get paid to wait at a price you already want to own. Thirty to forty-five days to expiration. Delta under twenty-five. Let theta do the work while you sleep.
@@ -134,42 +264,34 @@ Risk management is everything. Position size at one to three percent of capital.
 
 Five hundred tickers. Thousands of strikes. Millions of possibilities. But the edge is always the same: implied over realized. Collect premium. Manage risk. Repeat. This is not a get rich quick scheme. It is a get rich slowly machine.`;
 
-// --- State ---
-let mode = "idle";
-let gazeTarget = { x: 0.5, y: 0.3 };
-let gazeSmooth = { x: 0.5, y: 0.3 };
-let gyroBase = null;
-let gyroHandler = null;
-let camStream = null;
-let tracking = false;
-
-const $ = (s) => document.getElementById(s);
+// ─── State ───
+let mode = "start"; // start | calibrating | reading | touch
+let gazeSmooth = { x: window.innerWidth / 2, y: window.innerHeight / 3 };
+let gazeTarget = { x: window.innerWidth / 2, y: window.innerHeight / 3 };
 const wordEls = [];
 
-// --- Build text ---
-const body = $("text-body");
-const tokens = TEXT.split(/(\s+)/);
-tokens.forEach((tok, i) => {
+// ─── Build text ───
+const body = document.getElementById("text-body");
+TEXT.split(/(\s+)/).forEach((tok) => {
   const span = document.createElement("span");
   span.textContent = tok;
   if (/\S/.test(tok)) {
     span.className = "w";
-    span.dataset.idx = wordEls.length;
     wordEls.push(span);
   }
   body.appendChild(span);
 });
 
-// --- Smooth loop ---
+// ─── Smooth gaze + word update loop ───
 function tick() {
-  gazeSmooth.x += (gazeTarget.x - gazeSmooth.x) * 0.13;
-  gazeSmooth.y += (gazeTarget.y - gazeSmooth.y) * 0.13;
+  gazeSmooth.x += (gazeTarget.x - gazeSmooth.x) * SMOOTH;
+  gazeSmooth.y += (gazeTarget.y - gazeSmooth.y) * SMOOTH;
 
-  if (mode !== "idle") {
-    const light = $("gaze-light");
+  if (mode === "reading" || mode === "touch") {
+    const light = document.getElementById("gaze-light");
     light.style.display = "block";
-    light.style.left = (gazeSmooth.x * 100) + "%";
-    light.style.top = (gazeSmooth.y * 100) + "%";
+    light.style.left = gazeSmooth.x + "px";
+    light.style.top = gazeSmooth.y + "px";
     updateWords();
   }
   requestAnimationFrame(tick);
@@ -177,186 +299,248 @@ function tick() {
 requestAnimationFrame(tick);
 
 function updateWords() {
-  const ww = window.innerWidth;
-  const wh = window.innerHeight;
   const gx = gazeSmooth.x;
   const gy = gazeSmooth.y;
-  const radius = 0.12;
 
   for (const el of wordEls) {
     const r = el.getBoundingClientRect();
-    const cx = (r.left + r.right) / 2 / ww;
-    const cy = (r.top + r.bottom) / 2 / wh;
+    const cx = (r.left + r.right) / 2;
+    const cy = (r.top + r.bottom) / 2;
     const d = Math.sqrt((cx - gx) ** 2 + (cy - gy) ** 2);
 
-    if (d > radius) {
-      el.style.fontSize = "1em";
-      el.style.color = "#62626b";
+    if (d > GAZE_RADIUS) {
+      el.style.fontSize = "";
+      el.style.color = "";
     } else {
-      const prox = 1 - d / radius;
-      const scale = 1 + prox * 0.32;
+      const prox = 1 - d / GAZE_RADIUS;
+      const scale = 1 + prox * (MAX_SCALE - 1);
       el.style.fontSize = scale + "em";
-      el.style.color = prox > 0.2 ? "#fafafa" : "#62626b";
+      el.style.color = prox > 0.15 ? "#fafafa" : "";
     }
   }
 }
 
-// --- Camera ---
-const camVideo = $("camera");
-const detectCanvas = $("detect-canvas");
-const detectCtx = detectCanvas.getContext("2d", { willReadFrequently: true });
+// ─── Calibration ───
+const CAL_POINTS = [
+  [10, 10], [50, 10], [90, 10],
+  [10, 50], [50, 50], [90, 50],
+  [10, 90], [50, 90], [90, 90],
+];
+let calIndex = 0;
+let calClicks = 0;
+const CLICKS_PER_POINT = 3;
+let calPointEls = [];
 
-function detectFace() {
-  if (!tracking) return;
-  if (camVideo.readyState < 2) { requestAnimationFrame(detectFace); return; }
+function startCalibration() {
+  mode = "calibrating";
+  calIndex = 0;
+  calClicks = 0;
+  document.getElementById("start-screen").style.display = "none";
+  const calScreen = document.getElementById("calibration-screen");
+  calScreen.classList.remove("hidden");
 
-  const w = 120, h = 90;
-  detectCanvas.width = w;
-  detectCanvas.height = h;
-  detectCtx.drawImage(camVideo, 0, 0, w, h);
+  // Remove old points
+  calPointEls.forEach(el => el.remove());
+  calPointEls = [];
 
-  const img = detectCtx.getImageData(0, 0, w, h);
-  const d = img.data;
-  let sumX = 0, sumY = 0, count = 0;
+  // Create calibration points
+  CAL_POINTS.forEach(([px, py], i) => {
+    const point = document.createElement("div");
+    point.className = "cal-point";
+    point.style.left = `calc(${px}% - 18px)`;
+    point.style.top = `calc(${py}% - 18px)`;
+    point.style.opacity = i === 0 ? "1" : "0.2";
+    point.innerHTML = '<div class="cal-point-inner"></div>';
 
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const i = (y * w + x) * 4;
-      const r = d[i], g = d[i+1], b = d[i+2];
-      if (r > 80 && g > 40 && b > 30 && r > g && r > b &&
-          (r - g) > 15 && Math.abs(r - g) < 120 && (r - b) > 20) {
-        sumX += x; sumY += y; count++;
+    point.addEventListener("click", () => onCalClick(i));
+    point.addEventListener("touchstart", (e) => { e.preventDefault(); onCalClick(i); });
+
+    document.body.appendChild(point);
+    calPointEls.push(point);
+  });
+
+  updateCalProgress();
+}
+
+function onCalClick(index) {
+  if (index !== calIndex) return;
+  calClicks++;
+
+  if (calClicks >= CLICKS_PER_POINT) {
+    calPointEls[calIndex].classList.add("done");
+    calIndex++;
+    calClicks = 0;
+
+    if (calIndex >= CAL_POINTS.length) {
+      finishCalibration();
+      return;
+    }
+
+    calPointEls[calIndex].style.opacity = "1";
+  }
+
+  updateCalProgress();
+}
+
+function updateCalProgress() {
+  const total = CAL_POINTS.length * CLICKS_PER_POINT;
+  const done = calIndex * CLICKS_PER_POINT + calClicks;
+  document.getElementById("cal-progress").textContent =
+    `${done} / ${total} — ${CLICKS_PER_POINT - calClicks} taps left on this dot`;
+}
+
+function finishCalibration() {
+  calPointEls.forEach(el => el.remove());
+  calPointEls = [];
+  document.getElementById("calibration-screen").classList.add("hidden");
+
+  // Show reader
+  mode = "reading";
+  document.getElementById("reader-screen").classList.add("active");
+  document.getElementById("bottom-bar").style.display = "flex";
+  document.getElementById("reader-status").innerHTML =
+    '<span class="dot" style="width:6px;height:6px;border-radius:50%;background:#4ade80;display:inline-block;animation:blink 2s infinite"></span> EYE TRACKING ACTIVE';
+
+  // Show cam pip
+  const pipContainer = document.getElementById("cam-pip");
+  const wgVideo = document.getElementById("webgazerVideoFeed");
+  if (wgVideo) {
+    const clone = wgVideo.cloneNode(true);
+    clone.style.display = "block";
+    clone.style.width = "100%";
+    clone.style.height = "100%";
+    clone.style.objectFit = "cover";
+    clone.style.transform = "scaleX(-1)";
+    pipContainer.innerHTML = "";
+    pipContainer.appendChild(clone);
+    pipContainer.style.display = "block";
+
+    // Actually just show the original video in PIP
+    // The clone won't play, so let's use a different approach
+    try {
+      const stream = wgVideo.srcObject;
+      if (stream) {
+        const pipVideo = document.createElement("video");
+        pipVideo.srcObject = stream;
+        pipVideo.setAttribute("playsinline", "");
+        pipVideo.setAttribute("muted", "");
+        pipVideo.muted = true;
+        pipVideo.style.cssText = "width:100%;height:100%;object-fit:cover;transform:scaleX(-1)";
+        pipContainer.innerHTML = "";
+        pipContainer.appendChild(pipVideo);
+        pipVideo.play().catch(() => {});
       }
-    }
+    } catch(e) {}
   }
-
-  if (count > 150) {
-    const cx = sumX / count / w;
-    const cy = sumY / count / h;
-    gazeTarget.x = clamp(0.5 - (cx - 0.5) * 2.5, 0, 1);
-    gazeTarget.y = clamp(0.5 + (cy - 0.5) * 2.0, 0, 1);
-  }
-
-  requestAnimationFrame(detectFace);
 }
 
-async function startCamera() {
+// ─── WebGazer init ───
+async function initWebGazer() {
   try {
-    camStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "user", width: 160, height: 120 }
-    });
-    camVideo.srcObject = camStream;
-    await camVideo.play();
+    window.saveDataAcrossSessions = false;
 
-    // PiP preview
-    const pipVideo = $("pip-video");
-    pipVideo.srcObject = camStream;
-    pipVideo.play();
-    $("cam-pip").style.display = "block";
+    webgazer
+      .setGazeListener((data, timestamp) => {
+        if (data && mode === "reading") {
+          gazeTarget.x = data.x;
+          gazeTarget.y = data.y;
+        }
+      })
+      .showVideoPreview(false)
+      .showPredictionPoints(false)
+      .showFaceOverlay(false)
+      .showFaceFeedbackBox(false);
 
-    tracking = true;
-    setMode("camera");
-    requestAnimationFrame(detectFace);
-  } catch (e) {
-    alert("Camera access denied. Try Touch or Tilt mode instead.");
-    setMode("touch");
+    await webgazer.begin();
+
+    // Hide loading
+    document.getElementById("loading-overlay").classList.add("hidden");
+
+    // Camera is ready — show start screen
+    document.getElementById("camera-status").style.display = "flex";
+
+  } catch (err) {
+    console.error("WebGazer init failed:", err);
+    document.getElementById("loading-overlay").classList.add("hidden");
+    alert("Camera access required for eye tracking. Falling back to touch mode.");
+    startTouchMode();
   }
 }
 
-function stopCamera() {
-  tracking = false;
-  if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
-  $("cam-pip").style.display = "none";
+// ─── Touch fallback ───
+function startTouchMode() {
+  mode = "touch";
+  document.getElementById("start-screen").style.display = "none";
+  document.getElementById("calibration-screen").classList.add("hidden");
+  document.getElementById("reader-screen").classList.add("active");
+  document.getElementById("bottom-bar").style.display = "flex";
+  document.getElementById("reader-status").innerHTML =
+    '<span class="dot" style="width:6px;height:6px;border-radius:50%;background:#4ade80;display:inline-block;animation:blink 2s infinite"></span> TOUCH MODE — drag to read';
+
+  document.addEventListener("pointermove", (e) => {
+    if (mode !== "touch") return;
+    gazeTarget.x = e.clientX;
+    gazeTarget.y = e.clientY;
+  });
+  document.addEventListener("touchmove", (e) => {
+    if (mode !== "touch") return;
+    gazeTarget.x = e.touches[0].clientX;
+    gazeTarget.y = e.touches[0].clientY;
+  }, { passive: true });
 }
 
-// --- Gyro ---
-function startGyro() {
-  const handler = (e) => {
-    const beta = e.beta ?? 0;
-    const gamma = e.gamma ?? 0;
-    if (!gyroBase) gyroBase = { beta, gamma };
-    gazeTarget.x = clamp(0.5 + (gamma - gyroBase.gamma) / 28, 0, 1);
-    gazeTarget.y = clamp(0.4 + (beta - gyroBase.beta) / 35, 0, 1);
-  };
-
-  const attach = () => {
-    gyroHandler = handler;
-    window.addEventListener("deviceorientation", handler);
-    setMode("gyro");
-  };
-
-  if (typeof DeviceOrientationEvent !== "undefined" &&
-      typeof DeviceOrientationEvent.requestPermission === "function") {
-    DeviceOrientationEvent.requestPermission()
-      .then(r => { if (r === "granted") attach(); else setMode("touch"); })
-      .catch(() => setMode("touch"));
-  } else if ("DeviceOrientationEvent" in window) {
-    attach();
-  } else {
-    setMode("touch");
-  }
-}
-
-function stopGyro() {
-  if (gyroHandler) { window.removeEventListener("deviceorientation", gyroHandler); gyroHandler = null; }
-  gyroBase = null;
-}
-
-// --- Mode management ---
-function setMode(m) {
-  mode = m;
-  const controls = $("controls");
-  const bar = $("bottom-bar");
-  const status = $("status");
-  const recal = $("btn-recalibrate");
-
-  if (m === "idle") {
-    controls.style.display = "flex";
-    bar.style.display = "none";
-    status.innerHTML = "Choose a mode to start";
-    $("gaze-light").style.display = "none";
-  } else {
-    controls.style.display = "none";
-    bar.style.display = "flex";
-    recal.style.display = (m === "gyro") ? "inline-block" : "none";
-
-    if (m === "camera") {
-      status.innerHTML = '<span class="dot"></span> CAMERA — tracking your face';
-    } else if (m === "gyro") {
-      status.innerHTML = '<span class="dot"></span> GYRO — tilt phone to read';
-    } else {
-      status.innerHTML = '<span class="dot"></span> TOUCH — drag finger to read';
-    }
-  }
-}
-
-// --- Touch ---
-document.addEventListener("pointermove", (e) => {
-  if (mode === "camera" || mode === "gyro") return;
-  gazeTarget.x = e.clientX / window.innerWidth;
-  gazeTarget.y = e.clientY / window.innerHeight;
-  if (mode === "idle") setMode("touch");
-});
-document.addEventListener("touchmove", (e) => {
-  if (mode === "camera" || mode === "gyro") return;
-  const t = e.touches[0];
-  gazeTarget.x = t.clientX / window.innerWidth;
-  gazeTarget.y = t.clientY / window.innerHeight;
-  if (mode === "idle") setMode("touch");
-}, { passive: true });
-
-// --- Buttons ---
-$("btn-camera").addEventListener("click", startCamera);
-$("btn-gyro").addEventListener("click", startGyro);
-$("btn-touch").addEventListener("click", () => setMode("touch"));
-$("btn-recalibrate").addEventListener("click", () => { gyroBase = null; });
-$("btn-switch").addEventListener("click", () => {
-  stopCamera(); stopGyro();
-  setMode("idle");
-  wordEls.forEach(el => { el.style.fontSize = "1em"; el.style.color = "#62626b"; });
+// ─── Button handlers ───
+document.getElementById("start-btn").addEventListener("click", () => {
+  startCalibration();
 });
 
-function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+document.getElementById("fallback-touch-btn").addEventListener("click", () => {
+  startTouchMode();
+});
+
+document.getElementById("btn-recalibrate").addEventListener("click", () => {
+  // Reset word styles
+  wordEls.forEach(el => { el.style.fontSize = ""; el.style.color = ""; });
+  document.getElementById("reader-screen").classList.remove("active");
+  document.getElementById("bottom-bar").style.display = "none";
+  document.getElementById("gaze-light").style.display = "none";
+  document.getElementById("cam-pip").style.display = "none";
+
+  // Clear WebGazer training data
+  if (typeof webgazer !== "undefined") {
+    try { webgazer.clearData(); } catch(e) {}
+  }
+
+  startCalibration();
+});
+
+document.getElementById("btn-reset").addEventListener("click", () => {
+  wordEls.forEach(el => { el.style.fontSize = ""; el.style.color = ""; });
+  document.getElementById("reader-screen").classList.remove("active");
+  document.getElementById("bottom-bar").style.display = "none";
+  document.getElementById("gaze-light").style.display = "none";
+  document.getElementById("cam-pip").style.display = "none";
+
+  if (typeof webgazer !== "undefined") {
+    try { webgazer.end(); } catch(e) {}
+  }
+
+  mode = "start";
+  document.getElementById("start-screen").style.display = "flex";
+
+  // Reinit
+  setTimeout(() => initWebGazer(), 500);
+});
+
+// ─── Boot ───
+// First show loading, then init WebGazer
+document.getElementById("start-screen").style.display = "none";
+initWebGazer().then(() => {
+  document.getElementById("start-screen").style.display = "flex";
+}).catch(() => {
+  document.getElementById("loading-overlay").classList.add("hidden");
+  document.getElementById("start-screen").style.display = "flex";
+});
 </script>
 
 </body>
