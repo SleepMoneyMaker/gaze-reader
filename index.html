@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Gaze Reader</title>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    background: #0a0a0c; color: #62626b; overflow-x: hidden;
+    font-family: "Source Serif 4","Iowan Old Style","Palatino",Georgia,serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  #camera { position: fixed; top: 0; left: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+  #detect-canvas { display: none; }
+
+.header { padding: 28px 22px 0; position: relative; z-index: 1; }
+.label {
+font-family: “JetBrains Mono”,“SF Mono”,“Fira Code”,monospace;
+font-size: 9px; letter-spacing: 4px; color: #333; text-transform: uppercase;
+}
+.title {
+font-size: 24px; font-weight: 700; color: #fafafa;
+margin-top: 4px; line-height: 1.15;
+}
+.status {
+font-family: “JetBrains Mono”,monospace;
+font-size: 10px; color: #52525b; margin-top: 6px;
+display: flex; align-items: center; gap: 6px;
+}
+.dot {
+width: 6px; height: 6px; border-radius: 50%; background: #4ade80;
+display: inline-block; animation: blink 2s infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+.controls { padding: 18px 22px; display: flex; gap: 8px; }
+.btn {
+flex: 1; padding: 14px 0; border-radius: 10px;
+font-family: “JetBrains Mono”,monospace; font-size: 13px;
+cursor: pointer; border: none; -webkit-appearance: none;
+}
+.btn-primary { background: linear-gradient(135deg,#3b82f6,#8b5cf6); color: #fff; font-weight: 700; }
+.btn-secondary { background: #18181b; color: #a1a1aa; border: 1px solid #27272a; }
+
+.text-body {
+padding: 16px 22px 120px;
+font-size: 17px; line-height: 1.75;
+position: relative; z-index: 1;
+}
+.text-body .w {
+display: inline;
+transition: font-size .12s ease-out, color .15s;
+}
+
+.gaze-light {
+position: fixed; width: 220px; height: 220px;
+border-radius: 50%; pointer-events: none; z-index: 0;
+background: radial-gradient(circle, rgba(139,92,246,0.07) 0%, transparent 70%);
+transform: translate(-50%,-50%);
+display: none;
+}
+
+.bottom-bar {
+position: fixed; bottom: 0; left: 0; right: 0;
+padding: 12px 22px 28px;
+background: linear-gradient(transparent, #0a0a0c 50%);
+display: none; justify-content: center; gap: 8px; z-index: 10;
+}
+.small-btn {
+padding: 10px 20px; background: #18181bdd;
+backdrop-filter: blur(12px); color: #71717a;
+border: 1px solid #27272a; border-radius: 10px;
+font-family: “JetBrains Mono”,monospace; font-size: 11px; cursor: pointer;
+-webkit-appearance: none;
+}
+
+/* Camera preview pip */
+.cam-pip {
+position: fixed; top: 12px; right: 12px;
+width: 64px; height: 48px; border-radius: 8px;
+overflow: hidden; border: 1px solid #27272a;
+z-index: 20; display: none; opacity: 0.7;
+}
+.cam-pip video {
+width: 100%; height: 100%; object-fit: cover;
+transform: scaleX(-1);
+}
+</style>
+
+</head>
+<body>
+
+<video id="camera" playsinline muted></video>
+<canvas id="detect-canvas"></canvas>
+
+<div class="gaze-light" id="gaze-light"></div>
+
+<div class="cam-pip" id="cam-pip">
+  <video id="pip-video" playsinline muted></video>
+</div>
+
+<div class="header">
+  <div class="label">Gaze-Adaptive Reader</div>
+  <div class="title">The VRP Edge</div>
+  <div class="status" id="status">Choose a mode to start</div>
+</div>
+
+<div class="controls" id="controls">
+  <button class="btn btn-primary" id="btn-camera">📷 Camera</button>
+  <button class="btn btn-secondary" id="btn-gyro">📱 Tilt</button>
+  <button class="btn btn-secondary" id="btn-touch">👆 Touch</button>
+</div>
+
+<div class="text-body" id="text-body"></div>
+
+<div class="bottom-bar" id="bottom-bar">
+  <button class="small-btn" id="btn-recalibrate" style="display:none">↺ Recalibrate</button>
+  <button class="small-btn" id="btn-switch">Switch Mode</button>
+</div>
+
+<script>
+const TEXT = `The volatility risk premium is the single most persistent edge in options markets. Every day, implied volatility overestimates realized volatility by an average of three to five points. This gap is your edge. You are selling insurance that almost never pays out.
+
+Cash-secured puts are the purest expression of this trade. You get paid to wait at a price you already want to own. Thirty to forty-five days to expiration. Delta under twenty-five. Let theta do the work while you sleep.
+
+The beauty of selling premium is that time is always on your side. Every single day that passes, the option you sold loses value. You are literally making money from the passage of time. The market can go up, sideways, or even down a little, and you still win.
+
+Most traders fight the market. Premium sellers become the house. The casino does not gamble. It sells probability. That is exactly what you are doing every time you open a new position.
+
+Risk management is everything. Position size at one to three percent of capital. Never chase yield. Never sell into earnings. Screen for liquid underlyings with wide bid-ask spreads. The boring trades are the ones that compound.
+
+Five hundred tickers. Thousands of strikes. Millions of possibilities. But the edge is always the same: implied over realized. Collect premium. Manage risk. Repeat. This is not a get rich quick scheme. It is a get rich slowly machine.`;
+
+// --- State ---
+let mode = "idle";
+let gazeTarget = { x: 0.5, y: 0.3 };
+let gazeSmooth = { x: 0.5, y: 0.3 };
+let gyroBase = null;
+let gyroHandler = null;
+let camStream = null;
+let tracking = false;
+
+const $ = (s) => document.getElementById(s);
+const wordEls = [];
+
+// --- Build text ---
+const body = $("text-body");
+const tokens = TEXT.split(/(\s+)/);
+tokens.forEach((tok, i) => {
+  const span = document.createElement("span");
+  span.textContent = tok;
+  if (/\S/.test(tok)) {
+    span.className = "w";
+    span.dataset.idx = wordEls.length;
+    wordEls.push(span);
+  }
+  body.appendChild(span);
+});
+
+// --- Smooth loop ---
+function tick() {
+  gazeSmooth.x += (gazeTarget.x - gazeSmooth.x) * 0.13;
+  gazeSmooth.y += (gazeTarget.y - gazeSmooth.y) * 0.13;
+
+  if (mode !== "idle") {
+    const light = $("gaze-light");
+    light.style.display = "block";
+    light.style.left = (gazeSmooth.x * 100) + "%";
+    light.style.top = (gazeSmooth.y * 100) + "%";
+    updateWords();
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+function updateWords() {
+  const ww = window.innerWidth;
+  const wh = window.innerHeight;
+  const gx = gazeSmooth.x;
+  const gy = gazeSmooth.y;
+  const radius = 0.12;
+
+  for (const el of wordEls) {
+    const r = el.getBoundingClientRect();
+    const cx = (r.left + r.right) / 2 / ww;
+    const cy = (r.top + r.bottom) / 2 / wh;
+    const d = Math.sqrt((cx - gx) ** 2 + (cy - gy) ** 2);
+
+    if (d > radius) {
+      el.style.fontSize = "1em";
+      el.style.color = "#62626b";
+    } else {
+      const prox = 1 - d / radius;
+      const scale = 1 + prox * 0.32;
+      el.style.fontSize = scale + "em";
+      el.style.color = prox > 0.2 ? "#fafafa" : "#62626b";
+    }
+  }
+}
+
+// --- Camera ---
+const camVideo = $("camera");
+const detectCanvas = $("detect-canvas");
+const detectCtx = detectCanvas.getContext("2d", { willReadFrequently: true });
+
+function detectFace() {
+  if (!tracking) return;
+  if (camVideo.readyState < 2) { requestAnimationFrame(detectFace); return; }
+
+  const w = 120, h = 90;
+  detectCanvas.width = w;
+  detectCanvas.height = h;
+  detectCtx.drawImage(camVideo, 0, 0, w, h);
+
+  const img = detectCtx.getImageData(0, 0, w, h);
+  const d = img.data;
+  let sumX = 0, sumY = 0, count = 0;
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      const r = d[i], g = d[i+1], b = d[i+2];
+      if (r > 80 && g > 40 && b > 30 && r > g && r > b &&
+          (r - g) > 15 && Math.abs(r - g) < 120 && (r - b) > 20) {
+        sumX += x; sumY += y; count++;
+      }
+    }
+  }
+
+  if (count > 150) {
+    const cx = sumX / count / w;
+    const cy = sumY / count / h;
+    gazeTarget.x = clamp(0.5 - (cx - 0.5) * 2.5, 0, 1);
+    gazeTarget.y = clamp(0.5 + (cy - 0.5) * 2.0, 0, 1);
+  }
+
+  requestAnimationFrame(detectFace);
+}
+
+async function startCamera() {
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user", width: 160, height: 120 }
+    });
+    camVideo.srcObject = camStream;
+    await camVideo.play();
+
+    // PiP preview
+    const pipVideo = $("pip-video");
+    pipVideo.srcObject = camStream;
+    pipVideo.play();
+    $("cam-pip").style.display = "block";
+
+    tracking = true;
+    setMode("camera");
+    requestAnimationFrame(detectFace);
+  } catch (e) {
+    alert("Camera access denied. Try Touch or Tilt mode instead.");
+    setMode("touch");
+  }
+}
+
+function stopCamera() {
+  tracking = false;
+  if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
+  $("cam-pip").style.display = "none";
+}
+
+// --- Gyro ---
+function startGyro() {
+  const handler = (e) => {
+    const beta = e.beta ?? 0;
+    const gamma = e.gamma ?? 0;
+    if (!gyroBase) gyroBase = { beta, gamma };
+    gazeTarget.x = clamp(0.5 + (gamma - gyroBase.gamma) / 28, 0, 1);
+    gazeTarget.y = clamp(0.4 + (beta - gyroBase.beta) / 35, 0, 1);
+  };
+
+  const attach = () => {
+    gyroHandler = handler;
+    window.addEventListener("deviceorientation", handler);
+    setMode("gyro");
+  };
+
+  if (typeof DeviceOrientationEvent !== "undefined" &&
+      typeof DeviceOrientationEvent.requestPermission === "function") {
+    DeviceOrientationEvent.requestPermission()
+      .then(r => { if (r === "granted") attach(); else setMode("touch"); })
+      .catch(() => setMode("touch"));
+  } else if ("DeviceOrientationEvent" in window) {
+    attach();
+  } else {
+    setMode("touch");
+  }
+}
+
+function stopGyro() {
+  if (gyroHandler) { window.removeEventListener("deviceorientation", gyroHandler); gyroHandler = null; }
+  gyroBase = null;
+}
+
+// --- Mode management ---
+function setMode(m) {
+  mode = m;
+  const controls = $("controls");
+  const bar = $("bottom-bar");
+  const status = $("status");
+  const recal = $("btn-recalibrate");
+
+  if (m === "idle") {
+    controls.style.display = "flex";
+    bar.style.display = "none";
+    status.innerHTML = "Choose a mode to start";
+    $("gaze-light").style.display = "none";
+  } else {
+    controls.style.display = "none";
+    bar.style.display = "flex";
+    recal.style.display = (m === "gyro") ? "inline-block" : "none";
+
+    if (m === "camera") {
+      status.innerHTML = '<span class="dot"></span> CAMERA — tracking your face';
+    } else if (m === "gyro") {
+      status.innerHTML = '<span class="dot"></span> GYRO — tilt phone to read';
+    } else {
+      status.innerHTML = '<span class="dot"></span> TOUCH — drag finger to read';
+    }
+  }
+}
+
+// --- Touch ---
+document.addEventListener("pointermove", (e) => {
+  if (mode === "camera" || mode === "gyro") return;
+  gazeTarget.x = e.clientX / window.innerWidth;
+  gazeTarget.y = e.clientY / window.innerHeight;
+  if (mode === "idle") setMode("touch");
+});
+document.addEventListener("touchmove", (e) => {
+  if (mode === "camera" || mode === "gyro") return;
+  const t = e.touches[0];
+  gazeTarget.x = t.clientX / window.innerWidth;
+  gazeTarget.y = t.clientY / window.innerHeight;
+  if (mode === "idle") setMode("touch");
+}, { passive: true });
+
+// --- Buttons ---
+$("btn-camera").addEventListener("click", startCamera);
+$("btn-gyro").addEventListener("click", startGyro);
+$("btn-touch").addEventListener("click", () => setMode("touch"));
+$("btn-recalibrate").addEventListener("click", () => { gyroBase = null; });
+$("btn-switch").addEventListener("click", () => {
+  stopCamera(); stopGyro();
+  setMode("idle");
+  wordEls.forEach(el => { el.style.fontSize = "1em"; el.style.color = "#62626b"; });
+});
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+</script>
+
+</body>
+</html>
